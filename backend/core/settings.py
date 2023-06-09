@@ -42,6 +42,7 @@ INSTALLED_APPS = [
 	# third party apps
 	'corsheaders',
 	'background_task',
+	'solo',
 
 	# internal apps
 	'core',
@@ -121,7 +122,7 @@ TIME_ZONE = 'UTC'
 
 USE_I18N = True
 
-USE_TZ = False
+USE_TZ = True
 
 # App settings
 OPENSEA_API_KEY = os.environ['OPENSEA_API_KEY']

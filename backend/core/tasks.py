@@ -1,26 +1,14 @@
 from background_task import background
-from web3.middleware import geth_poa_middleware
-from web3 import Web3
+from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
 from . import contracts, models
-from datetime import datetime
 import requests
 
 
-# We're not actually pulling data from the chain
-# Instead we're pulling from the centralized
-# avvy indexer for simplicity. In the future
-# data could be pulled directly from RPC.
-def get_w3(network_id=None):
-	if network_id is None: network_id = 43114
-	rpc_url = {
-		43113: 'https://api.avax-test.network/ext/bc/C/rpc',
-		43114: 'https://api.avax.network/ext/bc/C/rpc',
-	}[network_id]
-	provider = Web3.HTTPProvider(rpc_url)
-	w3 = Web3(provider)
-	w3.middleware_onion.inject(geth_poa_middleware, layer=0)
-	return w3
-
+#
+# Related to syncing name registrations
+#
 
 @background
 def sync_domain_registration_data_for_name_batch(domain_ids):
@@ -52,45 +40,14 @@ def sync_domain_registration_data_for_name_batch(domain_ids):
 			data = data[0]
 			domain.hash = data['hash']
 			domain.expiry_date = data['expiry']
-		domain.last_updated_at = datetime.now()
+		domain.last_updated_at = timezone.now()
 		domain.save()
-
-
-
-@background
-def sync_domain_registration_data_for_name(domain_id):
-	domain = models.Domain.objects.get(pk=domain_id)
-	name = domain.name
-	print(f'Syncing {name}')
-	query = f"""
-	{{
-		domains(search: "{name}") {{
-			name
-			hash
-			expiry
-		}}
-	}}
-	"""
-	payload = {
-		'query': query
-	}
-	res = requests.post('https://api.avvy.domains/graphql', json=payload)
-	data = res.json()['data']['domains']
-	if len(data) == 0:
-		# domain isn't registered
-		pass
-	else:
-		data = data[0]
-		domain.hash = data['hash']
-		domain.expiry_date = data['expiry']
-	domain.last_updated_at = datetime.now()
-	domain.save()
 
 
 @background
 def sync_domain_registration_data():
-	domains = models.Domain.objects.all()
-	now = datetime.now()
+	domains = models.Domain.objects.filter(name__isnull=False)
+	now = timezone.now()
 	batch = []
 	update_threshold_seconds = 60 # how many seconds before we consider the record stale?
 	max_batch_size = 100
@@ -104,12 +61,113 @@ def sync_domain_registration_data():
 				batch = []
 	
 	# save the final task
-	sync_domain_registration_data_for_name_batch(batch)
+	if len(batch) > 0:
+		sync_domain_registration_data_for_name_batch(batch)
 
+
+# 
+# Related to syncing Opensea listings 
+#
+@background
+def sync_opensea_listings_cleanup():
+	sync_status = models.SyncStatus.get_solo()
+	stale_listings = models.Listing.objects.filter(
+		last_update=sync_status.opensea_last_sync,
+		marketplace=models.Listing.MARKETPLACES['OPENSEA']
+	)
+	stale_listings.delete()
+
+
+@background
+def sync_opensea_listings_page(cursor=None):
+	headers = {
+		'X-API-KEY': settings.OPENSEA_API_KEY
+	}
+	params = {
+		'limit': 100,
+	}
+	if cursor is not None:
+		params['next'] = cursor
+	res = requests.get('https://api.opensea.io/v2/listings/collection/avvy-domains-avax/all', headers=headers, params=params)
+
+	if res.status_code == 429:
+		# rate limit, come back in 1 minute
+		sync_opensea_listings_page(cursor, schedule=60)
+		return
+
+	data = res.json()
+
+	if 'listings' not in data:
+		print('Something went wrong, tf happened?')
+		import ipdb; ipdb.set_trace()
+	
+	listings = data['listings']
+
+	for _listing in listings:
+		try:
+			params = _listing.get('protocol_data', {}).get('parameters', {})
+			offer = params.get('offer', {})
+			if len(offer) > 1:
+				#import ipdb; ipdb.set_trace()
+				raise Exception("More than one item in opensea listing.. wat do?")
+			offer = offer[0]
+
+			# get token id
+			token_id = offer['identifierOrCriteria']
+
+			# get seller
+			seller = params['offerer']
+
+			try:
+				domain, _ = models.Domain.objects.get_or_create(
+					hash=token_id
+				)
+			except:
+				import ipdb; ipdb.set_trace()
+				pass
+
+			listing, _ = models.Listing.objects.get_or_create(
+				marketplace=models.Listing.MARKETPLACES['OPENSEA'],
+				seller=seller,
+				domain=domain
+			)
+			
+			# get price
+			price = _listing['price']['current']
+			listing.price = price['value']
+			listing.currency = price['currency']
+			listing.decimals = price['decimals']
+			listing.save()
+		except Exception as e:
+			#import ipdb; ipdb.set_trace()
+			raise e
+
+	# load next page
+	if data['next']:
+		sync_opensea_listings_page(data['next'])
+	else:
+		sync_opensea_listings_cleanup()
+
+
+@background
+def sync_opensea_listings():
+	""" this syncs all opensea listings via the retrieve_all_listings route """
+	""" WARNING: we don't pay attention to rate limiting here :D that will
+	cause problems at some point. """
+	sync_status = models.SyncStatus.get_solo()
+	now = timezone.now()
+	update_threshold_seconds = 60 * 5
+	if sync_status.opensea_last_sync is None or now - sync_status.opensea_last_sync > timedelta(seconds=update_threshold_seconds):
+		sync_opensea_listings_page()
+		sync_status.opensea_last_sync = now
+		sync_status.save()
+
+@background
 def sync():
 	# Master sync process, which
 	# initializes all of the child processes
 	sync_domain_registration_data()
+	sync_opensea_listings()
 
 	# schedule another sync
-	#sync(schedule=60*5)
+	sync(schedule=60*5)

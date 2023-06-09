@@ -1,5 +1,6 @@
 "use client"
  
+import { ethers } from 'ethers'
 import { ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -25,11 +26,28 @@ export const columns: ColumnDef<Domain>[] = [
     },
   },
   {
+    accessorKey: "DomainStatus",
+    header: "Status"
+  },
+  {
     accessorKey: "ExpiryDate",
     header: "Expires"
   },
   {
-    accessorKey: "DomainStatus",
-    header: "Status"
-  },
+    accessorFn: (row, index) => {
+      let listings = ''
+      let openseaPrice
+      if (row['OpenseaPrice']) {
+        openseaPrice = ethers.formatUnits(
+          BigInt(row['OpenseaPrice']), 
+          BigInt(row['OpenseaDecimals'])
+        ) + ' ' + row['OpenseaCurrency']
+        listings += `
+          Opensea (${openseaPrice})
+        `
+      }
+      return listings
+    },
+    header: 'Marketplace'
+  }
 ]

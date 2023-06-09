@@ -11,4 +11,6 @@
 env.sh
 *.swp
 *.swo
-
+db.sqlite3
+*.pyc
+__pycache__

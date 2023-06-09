@@ -6,3 +6,9 @@
 # random
 .afdesign
 .ipynb
+
+# other
+env.sh
+*.swp
+*.swo
+

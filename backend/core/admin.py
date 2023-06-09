@@ -4,7 +4,10 @@ from . import models
 
 @admin.register(models.Domain)
 class DomainAdmin(admin.ModelAdmin):
-	pass
+	list_display = [
+		'name',
+		'expiry_date',
+	]
 
 
 @admin.register(models.Collection)

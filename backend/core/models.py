@@ -1,12 +1,24 @@
 from django.db import models
+from solo.models import SingletonModel
+from datetime import datetime
 
 
 class Domain(models.Model):
-	name = models.CharField(max_length=200)
+	hash = models.CharField(max_length=500, null=True, blank=True)
+	name = models.CharField(max_length=200, null=True, blank=True)
 	expiry_date = models.DateTimeField(null=True, blank=True)
+	last_updated = models.DateTimeField(null=True, blank=True)
 
 	def __str__(self):
 		return self.name
+	
+	def is_registered(self):
+		return self.expiry_date is not None
+	
+	def is_expired(self):
+		now = datetime.now()
+		if self.expiry_date is None: return False
+		return now > self.expiry_date
 
 
 class Collection(models.Model):
@@ -39,3 +51,12 @@ class Collection(models.Model):
 			
 		return super().save(*args, **kwargs)
 
+
+class SyncStatus(SingletonModel):
+	domain_sync_block = models.CharField(default='14909991', max_length=200)
+
+	def __str__(self):
+		return "Sync Status"
+
+	class Meta:
+		verbose_name = 'Sync Status'

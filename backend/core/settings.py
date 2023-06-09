@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -38,7 +39,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+	# third party apps
 	'corsheaders',
+	'background_task',
+
+	# internal apps
 	'core',
 ]
 
@@ -116,7 +121,10 @@ TIME_ZONE = 'UTC'
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = False
+
+# App settings
+OPENSEA_API_KEY = os.environ['OPENSEA_API_KEY']
 
 
 # Static files (CSS, JavaScript, Images)

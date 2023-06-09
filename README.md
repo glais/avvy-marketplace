@@ -29,3 +29,9 @@ You need to export the following environment variables for the backend:
 
 1. Visit /admin/ on the server to access admin panel
 1. Collections of domains can be managed here
+
+### Setting up syncing
+
+There's a background task runner that pulls data from various sources.
+
+1. Run `python manage.py process_tasks` to start the task runner

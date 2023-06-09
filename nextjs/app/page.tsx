@@ -21,8 +21,8 @@ async function getData(slug): CollectionResponse {
 export default async function Page() {
 
   // slug should be loaded from url
-  //const slug = 'opensea-english-words'
-  const slug = 'first-names'
+  const slug = 'opensea-english-words'
+  //const slug = 'first-names'
   const data = await getData(slug)
 
   const formatAVAX = (row) => {

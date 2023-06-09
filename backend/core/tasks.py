@@ -1,8 +1,9 @@
 from background_task import background
+from background_task.models import Task
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
-from . import contracts, models
+from . import models
 import requests
 
 
@@ -171,3 +172,8 @@ def sync():
 
 	# schedule another sync
 	sync(schedule=60*5)
+
+
+# start the initial sync task.
+if Task.objects.filter(task_name='core.tasks.sync').count() == 0:
+	sync()

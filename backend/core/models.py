@@ -33,7 +33,9 @@ class Collection(models.Model):
 				self.domains.add(domain)
 
 		# remove the ones that we don't want in the list
-		# import ipdb; ipdb.set_trace()
+		to_remove = set([d.name for d in self.domains.all()]) - set(domains)
+		for domain in self.domains.filter(name__in=to_remove):
+			self.domains.remove(domain)
 			
 		return super().save(*args, **kwargs)
 
